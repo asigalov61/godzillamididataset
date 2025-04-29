@@ -102,6 +102,32 @@ godzillamididataset.search_and_filter(sigs_dicts, X, global_union)
 
 ***
 
+## Dataset structure information
+
+```
+Godzilla-MIDI-Dataset/
+├── ARTWORK/                    # Concept artwork
+│   ├── Illustrations/          # Concept illustrations
+│   ├── Logos/                  # Dataset logos
+│   └── Posters/                # Dataset posters
+├── CODE/                       # Supplemental python code and python modules
+├── DATA/                       # Dataset (meta)data dir
+│   ├── Averages/               # Averages data for all MIDIs and clean MIDIs
+│   ├── Basic Features/         # All basic features for all clean MIDIs
+│   ├── Files Lists/            # Files lists by MIDIs types and categories
+│   ├── Identified MIDIs/       # Comprehensive data for identified MIDIs
+│   ├── Metadata/               # Raw metadata from all MIDIs
+│   ├── Mono Melodies/          # Data for all MIDIs with monophonic melodies
+│   ├── Pitches Patches Counts/ # Pitches-patches counts for all MIDIs 
+│   ├── Pitches Sums/           # Pitches sums for all MIDIs
+│   ├── Signatures/             # Signatures data for all MIDIs and MIDIs subsets
+│   └── Text Captions/          # Music description text captions for all MIDIs
+├── MIDIs/                      # Root MIDIs directory
+└── SOUNDFONTS/                 # Select high-quality soundfont banks to render MIDIs
+```
+
+***
+
 ## Citation card
 
 ```bibtex
