@@ -33,6 +33,29 @@
 !pip install -U godzillamididataset[gpu]
 ```
 
+### Optional packages
+
+#### Packages for Fast Parallel Exctract module
+
+```sh
+# The following command will install packages for Fast Parallel Extract module
+# It will allow you to extract (untar) Godzilla MIDI Dataset much faster
+
+!sudo apt update -y
+!sudo apt install -y p7zip-full
+!sudo apt install -y pigz
+```
+
+#### Packages for midi_to_colab_audio module
+
+```sh
+# The following command will install packages for midi_to_colab_audio module
+# It will allow you to render Godzilla MIDI Dataset MIDIs to audio
+
+!sudo apt update -y
+!sudo apt install fluidsynth
+```
+
 ***
 
 ## Citation card
