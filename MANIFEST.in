@@ -1,0 +1,6 @@
+include godzillamididataset/README.md
+recursive-include godzillamididataset/ *
+recursive-include godzillamididataset/artwork *
+recursive-include godzillamididataset/midi_samples *
+recursive-include godzillamididataset/seed_midis *
+recursive-include godzillamididataset/examples *

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=80.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "godzillamididataset"
+version = "25.4.35"
+description = "Enormous, comprehensive, normalized and searchable MIDI dataset for MIR and symbolic music AI purposes"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Alex Lev", email = "alexlev61@proton.me" }
+]
+maintainers = [
+  { name = "Alex Lev", email = "alexlev61@proton.me" }
+]
+dependencies = [
+  "tqdm",
+  "ipywidgets",
+  "matplotlib",
+  "numpy==1.24.4",
+  "hf-transfer",
+  "huggingface_hub",
+]
+keywords = ["MIDI", "music", "music ai", "MIDI dataset", "music dataset", "MIR"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "Topic :: Multimedia :: Sound/Audio :: MIDI",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.6",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+requires-python = ">=3.6"
+
+[project.optional-dependencies]
+gpu = ["cupy-cuda12x"]
+
+[project.readme]
+file = "godzillamididataset/README.md"
+content-type = "text/markdown"
+
+[project.urls]
+Homepage = "https://github.com/asigalov61/godzillamididataset"
+SoundCloud = "https://soundcloud.com/aleksandr-sigalov-61/"
+Samples = "https://github.com/asigalov61/godzillamididataset/tree/main/godzillamididataset/midi_samples"
+Examples = "https://github.com/asigalov61/godzillamididataset/tree/main/godzillamididataset/examples"
+Documentation = "https://github.com/asigalov61/godzillamididataset"
+Issues = "https://github.com/asigalov61/godzillamididataset/issues"
+Discussions = "https://github.com/asigalov61/godzillamididataset/discussions"
+Dataset = "https://huggingface.co/datasets/projectlosangeles/Godzilla-MIDI-Dataset"
+Demo = "https://huggingface.co/datasets/projectlosangeles/Godzilla-MIDI-Dataset"
