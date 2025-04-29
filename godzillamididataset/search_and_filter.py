@@ -2168,6 +2168,43 @@ def donwload_dataset(repo_id='projectlosangeles/Godzilla-MIDI-Dataset',
 
 ###################################################################################
 
+def signatures_from_files_list(files_list='./Godzilla-MIDI-Dataset/DATA/Files Lists/identified_midis_files_list.jsonl',
+                               signatures_list='./Godzilla-MIDI-Dataset/DATA/Signatures/all_midis_signatures.jsonl',
+                               verbose=True
+                              ):
+    
+    if type(files_list) == str:
+        fi_lst = read_jsonl(files_list, verbose=verbose)
+
+    else:
+        fi_lst = files_list
+
+    if type(signatures_list) == str:
+        sig_lst = read_jsonl(signatures_list, verbose=verbose)
+
+    else:
+        sig_lst = signatures_list
+
+    sigs_md5s_dic = {}
+
+    for i, s in enumerate(tqdm.tqdm(sig_lst, disable=not verbose)):
+        sigs_md5s_dic[s['md5']] = i
+
+    out_sigs_lst = []
+    
+    for fi in tqdm.tqdm(fi_lst, disable=not verbose):
+        fmd5 = fi['md5']
+    
+        if fmd5 in sigs_md5s_dic:
+            sidx = sigs_md5s_dic[fmd5]
+            out_sigs_lst.append(sig_lst[sidx])
+
+    out_sigs_lst.sort(key=lambda x: x['md5'])
+
+    return out_sigs_lst
+
+###################################################################################
+
 print('Module is loaded!')
 print('Enjoy! :)')
 print('=' * 70)
