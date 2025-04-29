@@ -9,7 +9,7 @@
 
 ### 1) Over 5.43M+ unique, de-duped and normalized MIDIs
 ### 2) Each MIDI was converted to proper MIDI format specification and checked for integrity
-### 3) Dataset was de-duped twice: by md5 hashwa and by pitches-patches counts
+### 3) Dataset was de-duped twice: by md5 hashes and by pitches-patches counts
 ### 4) Extensive and comprehansive (meta)data was collected from all MIDIs in the dataset
 ### 5) Dataset comes with a custom-designed and highly optimized GPU-accelerated search and filter code
 
