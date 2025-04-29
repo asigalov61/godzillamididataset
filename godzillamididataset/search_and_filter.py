@@ -7,7 +7,7 @@ r'''############################################################################
 #	Godzilla Search and Filter Python Module
 #	Version 1.0
 #
-#   NOTE: Module code starts after the partial MIDI.py module @ line 1123
+#   NOTE: Module code starts after the partial MIDI.py module @ line 1122
 #
 #	Based upon MIDI.py module v.6.7. by Peter Billam / pjb.com.au
 #
@@ -72,8 +72,7 @@ r'''############################################################################
 #
 #   godzilla_search_and_filter.parallel_extract()
 #
-#   sigs_data_path = './Godzilla-MIDI-Dataset/DATA/all_midis_signatures.jsonl'
-#   sigs_data = godzilla_search_and_filter.read_jsonl(sigs_data_path)
+#   sigs_data = godzilla_search_and_filter.read_jsonl()
 #
 #   sigs_dicts = godzilla_search_and_filter.load_signatures(sigs_data)
 #
@@ -2045,7 +2044,7 @@ def search_and_filter(sigs_dicts,
 
 ###################################################################################
 
-def read_jsonl(file_name='./Godzilla-MIDI-Dataset/DATA/all_midis_signatures', 
+def read_jsonl(file_name='./Godzilla-MIDI-Dataset/DATA/Signatures/all_midis_signatures', 
                file_ext='.jsonl', 
                verbose=True
               ):
