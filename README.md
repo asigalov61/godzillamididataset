@@ -58,6 +58,40 @@
 
 ***
 
+## Quick-start use example
+
+```python
+# Import main Godzilla MIDI Dataset module
+import godzillamididataset
+
+# Download Godzilla MIDI Dataset from Hugging Face repo
+godzillamididataset.donwload_dataset()
+
+# Extract Godzilla MIDI Dataset with built-in function (slow)
+godzillamididataset.parallel_extract()
+
+# Or you can extract much faster if you have installed the optional packages for Fast Parallel Extract
+# from godzillamididataset import fast_parallel_extract
+# fast_parallel_extract.fast_parallel_extract()
+
+# Load all MIDIs basic signatures
+sigs_data = godzillamididataset.read_jsonl()
+
+# Create signatures dictionaries
+sigs_dicts = godzillamididataset.load_signatures(sigs_data)
+
+# Pre-compute signatures
+X, global_union = godzillamididataset.precompute_signatures(sigs_dicts)
+
+# Run the search
+# IO dirs will be created on the first run of the following function
+# Do not forget to put your master MIDIs into created Master-MIDI-Dataset folder
+# The full search for each master MIDI takes about 2-3 sec on a GPU and 4-5 min on a CPU
+godzillamididataset.search_and_filter(sigs_dicts, X, global_union)
+```
+
+***
+
 ## Citation card
 
 ```bibtex
