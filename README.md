@@ -122,7 +122,7 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
 │   ├── Pitches Sums/               # Pitches sums for all MIDIs
 │   ├── Signatures/                 # Signatures data for all MIDIs and MIDIs subsets
 │   └── Text Captions/              # Music description text captions for all MIDIs
-├── MIDIs/                          # Root MIDIs directory
+├── MIDIs/                          # Root MIDIs dir
 └── SOUNDFONTS/                     # Select high-quality soundfont banks to render MIDIs
 ```
 
