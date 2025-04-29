@@ -1,4 +1,4 @@
-# [WIP] Godzilla MIDI Dataset
+# Godzilla MIDI Dataset
 ## Enormous, comprehensive, normalized and searchable MIDI dataset for MIR and symbolic music AI purposes
 
 ![Godzilla-MIDI-Dataset](https://github.com/user-attachments/assets/8008d578-f120-4a02-a0bf-7154e9a7423d)
