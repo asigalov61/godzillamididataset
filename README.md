@@ -128,7 +128,11 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
 
 ***
 
-## Citation card
+## Dataset (meta)data information
+
+***
+
+## Citation
 
 ```bibtex
 @misc{GodzillaMIDIDataset2025,
