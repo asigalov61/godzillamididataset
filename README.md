@@ -1,7 +1,30 @@
 # [WIP] Godzilla MIDI Dataset
 ## Enormous, comprehensive, normalized and searchable MIDI dataset for MIR and symbolic music AI purposes
 
-![Godzilla-MIDI-Dataset-Logo.png](https://cdn-uploads.huggingface.co/production/uploads/64820d166e41cac337e0ccb8/JeZ8t-WwtkFOkqS9yRQ7R.png)
+![Godzilla-MIDI-Dataset](https://github.com/user-attachments/assets/8008d578-f120-4a02-a0bf-7154e9a7423d)
+
+***
+
+## Installation
+
+### pip and setuptools
+
+```sh
+# It is recommended that you upgrade pip and setuptools prior to install for max compatibility
+!pip install --upgrade pip
+!pip install --upgrade setuptools
+```
+
+### CPU-only install
+
+```sh
+# The following command will install Godzilla MIDI Dataset for CPU-only search
+# Please note that CPU search is quite slow and it requires a minimum of 128GB RAM to work for full searches
+
+!pip install -U godzillamididataset
+```
+
+
 
 ***
 
