@@ -130,6 +130,106 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
 
 ## Dataset (meta)data information
 
+****
+
+### Averages
+
+#### Averages for all MIDIs are presented in three groups:
+
+* ##### Notes averages without drums
+* ##### Notes and drums averages
+* ##### Drums averages without notes
+
+#### Each group of averages is represented by a list of four values:
+
+* ##### Delta start-times average in ms
+* ##### Durations average in ms
+* ##### Pitches average
+* ##### Velocities average
+
+****
+
+### Basic features
+
+#### Basic features are presented in a form of a dictionary of 111 metrics
+#### The features were collected from a solo piano score representation of all MIDIs with MIDI instruments below 80
+#### These features are useful for music classification, analysis and other MIR tasks
+
+****
+
+### Files lists
+
+#### Numerous files lists were created for convenience and easy MIDIs retrieval from the dataset
+#### These include lists of all MIDIs as well as subsets of MIDIs
+#### Files lists are presented in a dictionary format of two strings:
+
+* ##### MIDI md5 hash
+* ##### Full MIDI path
+
+****
+
+### Identified MIDIs
+
+#### This data contains information about all MIDIs that were definitivelly identified by artist, title, and genre
+
+****
+
+### Metadata
+
+#### Metadata was collected from all MIDIs in the dataset and its a list of all MIDI events preceeding first MIDI note event
+#### The list also includes the last note event of the MIDI which is useful for measuring runtime of the MIDI
+#### The list follows the MIDI.py score format
+
+****
+
+### Mono melodies
+
+#### This data contains information about all MIDIs with at least one monophonic melody
+#### The data in a form of list of tuples where first element represents monophonic melody patch/instrument
+#### And the second element of the tuple represents number of notes for indicated patch/instrument
+#### Please note that many MIDIs may have more than one monophonic melody
+
+****
+
+### Pitches patches counts
+
+#### This data contains the pitches-patches counts for all MIDIs in the dataset
+#### This information is very useful for de-duping, MIR and statistical analysis
+
+****
+
+### Pitches sums
+
+#### This data contains MIDI pitches sums for all MIDIs in the dataset
+#### Pitches sums can be used for de-duping, MIR and comparative analysis
+
+****
+
+### Signatures
+
+#### This data contains two signatures for each MIDI in the dataset:
+
+* ##### Full signature with 577 features
+* ##### Basic signature with 392 features
+
+#### Both signatures are presented as lists of tuples where first element is a feature and the second element is a feature count
+#### Both signatures also include number of bad features indicated by -1
+
+#### Signatures features are divided into three groups:
+
+* ##### MIDI pitches (represented by values 0-127)
+* ##### MIDI chords (represented by values 128-449 or 128-264)
+* ##### MIDI drum pitches (represented by values 449-577 or 264-392)
+
+#### Both signatures can be very effectively used for MIDI comparison or MIDI search and filtering
+
+****
+
+### Text captions
+
+#### This data contains detailed textual description of music in each MIDI in the dataset
+#### These captions can be used for text-to-music tasks and for MIR tasks
+
 ***
 
 ## Citation
