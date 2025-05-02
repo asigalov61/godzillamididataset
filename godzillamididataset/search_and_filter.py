@@ -1965,6 +1965,8 @@ def search_and_filter(sigs_dicts,
                       master_dir = './Master-MIDI-Dataset/',
                       output_dir = './Output-MIDI-Dataset/',
                       number_of_top_matches_to_copy = 30,
+                      include_original_midis=True,
+                      use_full_signatures=False,
                       transpose_factor=6,
                       convert_counts_to_ratios=True,
                       omit_drums=True,
@@ -1997,6 +1999,7 @@ def search_and_filter(sigs_dicts,
         print('=' * 70)
     
         trg_sigs = get_MIDI_signature(midi,
+                                      return_full_signature=use_full_signatures,
                                       transpose_factor=transpose_factor,
                                       convert_counts_to_ratios=convert_counts_to_ratios,
                                       omit_drums=omit_drums,
@@ -2021,6 +2024,10 @@ def search_and_filter(sigs_dicts,
             out_dir = os.path.splitext(inp_fn)[0]
     
             os.makedirs(output_dir+'/'+out_dir, exist_ok=True)
+
+            if include_original_midis:
+                shutil.copy2(midi, output_dir+'/'+out_dir+'/'+inp_fn)
+                
         
             for _, idx in enumerate(sorted_indices[:number_of_top_matches_to_copy]):          
                 
