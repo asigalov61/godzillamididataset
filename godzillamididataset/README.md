@@ -232,7 +232,7 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
 
 ***
 
-## Citation
+## Citations
 
 ```bibtex
 @misc{GodzillaMIDIDataset2025,
@@ -241,6 +241,27 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
   publisher    = {Project Los Angeles / Tegridy Code},
   year         = {2025},
   url          = {https://huggingface.co/datasets/projectlosangeles/Godzilla-MIDI-Dataset}
+```
+
+```bibtex
+@misc {breadai_2025,
+    author       = { {BreadAi} },
+    title        = { Sourdough-midi-dataset (Revision cd19431) },
+    year         = 2025,
+    url          = {\url{https://huggingface.co/datasets/BreadAi/Sourdough-midi-dataset}},
+    doi          = { 10.57967/hf/4743 },
+    publisher    = { Hugging Face }
+}
+```
+
+```bibtex
+@inproceedings{bradshawaria,
+  title={Aria-MIDI: A Dataset of Piano MIDI Files for Symbolic Music Modeling},
+  author={Bradshaw, Louis and Colton, Simon},
+  booktitle={International Conference on Learning Representations},
+  year={2025},
+  url={https://openreview.net/forum?id=X5hrhgndxW}, 
+}
 ```
 
 ***
