@@ -51,7 +51,7 @@ r'''############################################################################
 
 ###################################################################################
 
-__version__ = "25.5.2"
+__version__ = "25.5.6"
 
 print('=' * 70)
 print('TMIDIX Python module')
@@ -1488,6 +1488,7 @@ from itertools import groupby
 
 from collections import Counter
 from collections import defaultdict
+from collections import OrderedDict
 
 from operator import itemgetter
 
@@ -1509,6 +1510,8 @@ from pathlib import Path
 import shutil
 
 import hashlib
+
+from array import array
 
 ###################################################################################
 #
@@ -3862,7 +3865,10 @@ def chordify_score(score,
     else:
       return None
 
-def fix_monophonic_score_durations(monophonic_score):
+def fix_monophonic_score_durations(monophonic_score,
+                                   min_notes_gap=1,
+                                   min_notes_dur=1
+                                   ):
   
     fixed_score = []
 
@@ -3874,15 +3880,17 @@ def fix_monophonic_score_durations(monophonic_score):
         nmt = monophonic_score[i+1][1]
 
         if note[1]+note[2] >= nmt:
-          note_dur = max(1, nmt-note[1]-1)
+          note_dur = max(1, nmt-note[1]-min_notes_gap)
         else:
           note_dur = note[2]
 
         new_note = [note[0], note[1], note_dur] + note[3:]
-
-        fixed_score.append(new_note)
-
-      fixed_score.append(monophonic_score[-1])
+        
+        if new_note[2] >= min_notes_dur:
+            fixed_score.append(new_note)
+      
+      if monophonic_score[-1][2] >= min_notes_dur:
+          fixed_score.append(monophonic_score[-1])
 
     elif type(monophonic_score[0][0]) == int:
 
@@ -3892,15 +3900,17 @@ def fix_monophonic_score_durations(monophonic_score):
         nmt = monophonic_score[i+1][0]
 
         if note[0]+note[1] >= nmt:
-          note_dur = max(1, nmt-note[0]-1)
+          note_dur = max(1, nmt-note[0]-min_notes_gap)
         else:
           note_dur = note[1]
-
+          
         new_note = [note[0], note_dur] + note[2:]
-
-        fixed_score.append(new_note)
-
-      fixed_score.append(monophonic_score[-1]) 
+        
+        if new_note[1] >= min_notes_dur:
+            fixed_score.append(new_note)
+      
+      if monophonic_score[-1][1] >= min_notes_dur:
+          fixed_score.append(monophonic_score[-1]) 
 
     return fixed_score
 
@@ -11183,13 +11193,17 @@ def escore_notes_core(escore_notes, core_len=128):
 
 ###################################################################################
 
-def multiprocessing_wrapper(function, data_list):
+def multiprocessing_wrapper(function, data_list, verbose=True):
     
     with multiprocessing.Pool() as pool:
         
         results = []
         
-        for result in tqdm.tqdm(pool.imap_unordered(function, data_list), total=len(data_list)):
+        for result in tqdm.tqdm(pool.imap_unordered(function, data_list),
+                                total=len(data_list),
+                                disable=not verbose
+                                ):
+            
             results.append(result)
             
     return results
@@ -12933,7 +12947,7 @@ def find_next(pitches, cur_ptc):
 
 ###################################################################################
 
-def ordered_groups(data, key_index):
+def ordered_groups_unsorted(data, key_index):
    
     def keyfunc(sublist):
         return sublist[key_index]
@@ -12947,9 +12961,25 @@ def ordered_groups(data, key_index):
 
 ###################################################################################
 
-def merge_melody_notes(escore_notes, pitches_idx=4, max_dur=255):
+def ordered_groups(data, key_index):
+    
+    groups = OrderedDict()
+    
+    for sublist in data:
+        key = sublist[key_index]
+        
+        if key not in groups:
+            groups[key] = []
+            
+        groups[key].append(sublist)
+    
+    return list(groups.items())
 
-    groups = ordered_groups(escore_notes, pitches_idx)
+###################################################################################
+
+def merge_melody_notes(escore_notes, pitches_idx=4, max_dur=255, last_dur=128):
+
+    groups = ordered_groups_unsorted(escore_notes, pitches_idx)
 
     merged_melody_notes = []
 
@@ -12968,7 +12998,16 @@ def merge_melody_notes(escore_notes, pitches_idx=4, max_dur=255):
                                         g[0][4],
                                         g[0][5],
                                         g[0][6]
-                                        ])
+                                       ])
+ 
+    merged_melody_notes.append(['note',
+                                groups[-1][1][0][1],
+                                last_dur,
+                                groups[-1][1][0][3],
+                                groups[-1][1][0][4],
+                                groups[-1][1][0][5],
+                                groups[-1][1][0][6]
+                               ])
             
     return merged_melody_notes
 
@@ -12976,10 +13015,13 @@ def merge_melody_notes(escore_notes, pitches_idx=4, max_dur=255):
 
 def add_expressive_melody_to_enhanced_score_notes(escore_notes,
                                                   melody_start_chord=0,
+                                                  melody_prime_pitch=60,
+                                                  melody_step=1,
                                                   melody_channel=3,
                                                   melody_patch=40,
                                                   melody_notes_max_duration=255,
-                                                  medley_max_min_durs=[],
+                                                  melody_last_note_dur=128,
+                                                  melody_clip_max_min_durs=[],
                                                   melody_max_velocity=120,
                                                   acc_max_velocity=90,
                                                   return_melody=False
@@ -12992,26 +13034,28 @@ def add_expressive_melody_to_enhanced_score_notes(escore_notes,
 
     cscore = chordify_score([1000, score])
 
-    melody_pitches = [72]
+    melody_pitches = [melody_prime_pitch]
     
     for i, c in enumerate(cscore[melody_start_chord:]):
         
-        pitches = [e[4] for e in c if e[3] != 9]
-    
-        if pitches:
-            cptc = find_closest_value(mult_pitches(pitches), melody_pitches[-1])[0]
-            melody_pitches.append(cptc)
+        if i % melody_step == 0:
+        
+            pitches = [e[4] for e in c if e[3] != 9]
+        
+            if pitches:
+                cptc = find_closest_value(mult_pitches(pitches), melody_pitches[-1])[0]
+                melody_pitches.append(cptc)
     
     song_f = []
     mel_f = []
     
     idx = 1
     
-    for i, c in enumerate(cscore[:-1]):
+    for i, c in enumerate(cscore[:-melody_step]):
         pitches = [e[4] for e in c if e[3] != 9]
     
-        if pitches and i >= melody_start_chord:
-            dur = min(cscore[i+1][0][1] - c[0][1], melody_notes_max_duration)
+        if pitches and i >= melody_start_chord and i % melody_step == 0:
+            dur = min(cscore[i+melody_step][0][1] - c[0][1], melody_notes_max_duration)
             
             mel_f.append(['note', 
                           c[0][1], 
@@ -13024,25 +13068,77 @@ def add_expressive_melody_to_enhanced_score_notes(escore_notes,
             idx += 1
             
         song_f.extend(c)
-
-    song_f.extend(cscore[-1])
+        
+    song_f.extend(flatten(cscore[-melody_step:]))
     
-    if medley_max_min_durs:
+    if len(melody_clip_max_min_durs) == 2:
         for e in mel_f:
-            if e[2] >= medley_max_min_durs[0]:
-                e[2] = medley_max_min_durs[1]
+            if e[2] >= melody_clip_max_min_durs[0]:
+                e[2] = melody_clip_max_min_durs[1]
 
     adjust_score_velocities(mel_f, melody_max_velocity)
     
-    song_f = sorted(merge_melody_notes(mel_f, max_dur=melody_notes_max_duration) + song_f,
+    merged_melody_notes = merge_melody_notes(mel_f,
+                                             max_dur=melody_notes_max_duration,
+                                             last_dur=melody_last_note_dur
+                                             )
+
+    song_f = sorted(merged_melody_notes + song_f,
                     key=lambda x: x[1]
-                    )
+                   )
 
     if return_melody:
         return mel_f
 
     else:
         return song_f
+
+###################################################################################
+    
+def list_md5_hash(ints_list):
+    
+    arr = array('H', ints_list)
+    binary_data = arr.tobytes()
+    
+    return hashlib.md5(binary_data).hexdigest()
+
+###################################################################################
+
+def fix_escore_notes_durations(escore_notes,
+                               min_notes_gap=1,
+                               min_notes_dur=1,
+                               times_idx=1,
+                               durs_idx=2,
+                               channels_idx = 3, 
+                               pitches_idx=4
+                              ):
+
+    notes = [e for e in escore_notes if e[channels_idx] != 9]
+    drums = [e for e in escore_notes if e[channels_idx] == 9]
+    
+    escore_groups = ordered_groups(notes, pitches_idx)
+
+    merged_score = []
+
+    for k, g in escore_groups:
+        if len(g) > 2:
+            fg = fix_monophonic_score_durations(g, 
+                                                min_notes_gap=min_notes_gap, 
+                                                min_notes_dur=min_notes_dur
+                                               )
+            merged_score.extend(fg)
+
+        elif len(g) == 2:
+
+            if g[0][times_idx]+g[0][durs_idx] >= g[1][times_idx]:
+                g[0][durs_idx] = max(1, g[1][times_idx] - g[0][times_idx] - 1)
+                
+            merged_score.extend(g)
+
+        else:
+            merged_score.extend(g)
+
+    return sorted(merged_score + drums, key=lambda x: x[times_idx])
 
 ###################################################################################
 
