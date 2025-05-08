@@ -6,7 +6,7 @@ with open("godzillamididataset/README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="godzillamididataset",
-    version="25.5.6",
+    version="25.5.8",
     description="Enormous, comprehensive, normalized and searchable MIDI dataset for MIR and symbolic music AI purposes",
     long_description=long_description,
     long_description_content_type="text/markdown",
