@@ -1753,6 +1753,7 @@ def load_signatures(signatures_data,
 
 def get_distance(sig_dict1, 
                  sig_dict2,
+                 use_abs_dist=True,
                  mismatch_penalty=10,
                  p=3
                 ):
@@ -1762,14 +1763,20 @@ def get_distance(sig_dict1,
     total = 0.0
     
     for key in all_keys:
-
         if key in sig_dict1 and key in sig_dict2:
+            
             a = sig_dict1.get(key, 0)
             b = sig_dict2.get(key, 0)
     
             if min(a, b) > 0:
-                ratio = max(a, b) / min(a, b)
-                diff = ratio - 1
+
+                if use_abs_dist:
+                    diff = abs(a - b)
+                
+                else:
+                    ratio = max(a, b) / min(a, b)
+                    diff = ratio - 1
+                    
                 total += diff ** p
 
         else:
@@ -1780,20 +1787,31 @@ def get_distance(sig_dict1,
 
 ###################################################################################
 
-def get_distance_np(sig_dict1, sig_dict2, mismatch_penalty=10, p=3):
+def get_distance_np(sig_dict1, 
+                    sig_dict2, 
+                    use_abs_dist=True, 
+                    mismatch_penalty=10, 
+                    p=3, 
+                    eps=1e-10
+                   ):
 
-    keys = np.array(list(set(sig_dict1.keys()) | set(sig_dict2.keys())))
+    keys = list(set(sig_dict1.keys()) | set(sig_dict2.keys()))
 
     freq1 = np.array([sig_dict1.get(k, 0) for k in keys], dtype=float)
     freq2 = np.array([sig_dict2.get(k, 0) for k in keys], dtype=float)
-    
+
     mask = (freq1 > 0) & (freq2 > 0)
-    
-    diff = np.where(mask,
-                    (np.maximum(freq1, freq2) / np.minimum(freq1, freq2)) - 1.0,
-                    mismatch_penalty)
-    
-    sum_term = np.sum((diff ** p) * union_mask, axis=1)
+    union_mask = (freq1 > 0) | (freq2 > 0)
+
+    safe_min = np.where(mask, np.minimum(freq1, freq2) + eps, 1.0)
+
+    if use_abs_dist:
+        diff = np.where(mask, np.abs(freq1 - freq2), mismatch_penalty)
+
+    else:
+        diff = np.where(mask, (np.maximum(freq1, freq2) / safe_min) - 1.0, mismatch_penalty)
+
+    sum_term = np.sum((diff ** p) * union_mask)
     
     return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
 
@@ -1836,17 +1854,27 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
 def get_distances_np(trg_signature_dictionary,
                      X,
                      global_union,
+                     use_abs_dist=True,
                      mismatch_penalty=10,
-                     p=3
+                     p=3,
+                     eps=1e-10
                     ):
 
     target_vec = counter_to_vector(trg_signature_dictionary, global_union)
     
     mask_both = (X > 0) & (target_vec > 0)
-    
-    diff = np.where(mask_both,
-                    (np.maximum(X, target_vec) / np.minimum(X, target_vec)) - 1.0,
-                    mismatch_penalty)
+
+    if use_abs_dist:
+        diff = np.where(mask_both,
+                        np.abs(X - target_vec),
+                        mismatch_penalty)        
+
+    else:
+        safe_min = np.where(mask_both, np.minimum(X, target_vec) + eps, 1.0)
+        
+        diff = np.where(mask_both,
+                        (np.maximum(X, target_vec) / safe_min) - 1.0,
+                        mismatch_penalty)
     
     union_mask = (X > 0) | (target_vec > 0)
     
@@ -1970,6 +1998,7 @@ def search_and_filter(sigs_dicts,
                       transpose_factor=6,
                       convert_counts_to_ratios=True,
                       omit_drums=True,
+                      use_abs_dist=True,
                       mismatch_penalty=10,
                       p=3
                      ):
@@ -1989,13 +2018,14 @@ def search_and_filter(sigs_dicts,
 
     os.makedirs(master_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
-    
-    for midi in master_midis:
+   
+    for fnum, midi in enumerate(master_midis):
     
         inp_fn = os.path.basename(midi)
     
         print('=' * 70)
-        print('Processing MIDI file:', inp_fn)
+        print('Processing MIDI file #', fnum+1, '/', len(master_midis))
+        print('MIDI file name:', inp_fn)
         print('=' * 70)
     
         trg_sigs = get_MIDI_signature(midi,
@@ -2015,6 +2045,7 @@ def search_and_filter(sigs_dicts,
             dists = get_distances_np(trg_sigs[i],
                                      X,
                                      global_union,
+                                     use_abs_dist=use_abs_dist,
                                      mismatch_penalty=mismatch_penalty,
                                      p=p
                                      )
@@ -2027,8 +2058,7 @@ def search_and_filter(sigs_dicts,
 
             if include_original_midis:
                 shutil.copy2(midi, output_dir+'/'+out_dir+'/'+inp_fn)
-                
-        
+
             for _, idx in enumerate(sorted_indices[:number_of_top_matches_to_copy]):          
                 
                 fn = sigs_dicts[idx][0]
@@ -2052,7 +2082,8 @@ def search_and_filter(sigs_dicts,
 ###################################################################################
 
 def read_jsonl(file_name='./Godzilla-MIDI-Dataset/DATA/Signatures/all_midis_signatures', 
-               file_ext='.jsonl', 
+               file_ext='.jsonl',
+               max_lines=-1,
                verbose=True
               ):
 
@@ -2075,6 +2106,10 @@ def read_jsonl(file_name='./Godzilla-MIDI-Dataset/DATA/Signatures/all_midis_sign
                 record = json.loads(line)
                 records.append(record)
                 gl_count += 1
+
+                if max_lines > 0:
+                    if gl_count == max_lines:
+                        break
 
             except KeyboardInterrupt:
                 if verbose:
