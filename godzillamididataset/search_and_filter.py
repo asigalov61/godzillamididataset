@@ -122,12 +122,14 @@ import math
 from collections import defaultdict
 
 try:
-    import cupy as np
+    import cupy as cp
+    import numpy as np
     print('CuPy is found!')
     print('Will use CuPy and GPU for processing!')
 
 except:
     import numpy as np
+    import numpy as cp
     print('Could not load CuPy!')
     print('Will use NumPy and CPU for processing!')
     
@@ -1813,60 +1815,129 @@ def get_distance_np(sig_dict1,
 
     keys = list(set(sig_dict1.keys()) | set(sig_dict2.keys()))
 
-    freq1 = np.array([sig_dict1.get(k, 0) for k in keys], dtype=float)
-    freq2 = np.array([sig_dict2.get(k, 0) for k in keys], dtype=float)
+    freq1 = np.array([sig_dict1.get(k, 0) for k in keys], dtype=np.float16)
+    freq2 = np.array([sig_dict2.get(k, 0) for k in keys], dtype=np.float16)
 
     mask = (freq1 > 0) & (freq2 > 0)
     union_mask = (freq1 > 0) | (freq2 > 0)
 
     if use_abs_dist:
-        diff = np.where(mask, np.abs(freq1 - freq2), mismatch_penalty)
+        diff = np.where(mask, 
+                        np.abs(np.subtract(freq1, 
+                                           freq2, 
+                                           dtype=np.float16)
+                              ), 
+                        mismatch_penalty
+                       )
 
     else:
         if use_min_max_ratios:
-            diff = np.where(mask, 1.0 - (np.minimum(freq1, freq2) / np.maximum(freq1, freq2)), mismatch_penalty)
+            diff = np.where(mask, 
+                            np.subtract(1.0, 
+                                        np.divide(np.minimum(freq1, freq2), 
+                                                  np.maximum(freq1, freq2), 
+                                                  dtype=np.float16
+                                                 ),
+                                        dtype=np.float16), 
+                            mismatch_penalty
+                           )
 
         else:
             safe_min = np.where(mask, np.minimum(freq1, freq2) + eps, 1.0)
-            diff = np.where(mask, (np.maximum(freq1, freq2) / safe_min) - 1.0, mismatch_penalty)
+            diff = np.where(mask, 
+                            np.subtract(np.divide(np.maximum(freq1, freq2), 
+                                                  safe_min, 
+                                                  dtype=np.float16
+                                                 ), 
+                                        1.0, dtype=np.float16), 
+                            mismatch_penalty
+                           )
 
-    sum_term = np.sum((diff ** p) * union_mask)
+    sum_term = np.sum(np.power(diff, p, dtype=np.float64) * union_mask, dtype=np.float64)
     
-    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
+    return np.cbrt(sum_term, dtype=np.float64) if p == 3 else np.power(sum_term, 1.0 / p, dtype=np.float64)
+
+###################################################################################
+
+def precompute_signatures(signatures_dictionaries, verbose=True):
+    
+    if verbose:
+        print("Creating global union array...")
+
+    union_keys = sorted({key for sig in signatures_dictionaries for key in sig[1].keys()})
+
+    union_map = {key: i for i, key in enumerate(union_keys)}
+
+    global_union = cp.array(union_keys)
+
+    num_sigs = len(signatures_dictionaries)
+    num_keys = len(union_keys)
+
+    if verbose:
+        print("Accumulating row/column indices and data on the CPU...")
+
+    rows_list, cols_list, data_list = [], [], []
+    
+    for i, sig in enumerate(tqdm.tqdm(signatures_dictionaries, disable=not verbose)):
+        
+        counter = sig[1]
+        
+        if not counter:
+            continue
+
+        keys = list(counter.keys())
+        
+        col_indices = [union_map[k] for k in keys]
+        values = list(counter.values())
+        n_entries = len(values)
+
+        rows_list.append(np.full(n_entries, i, dtype=np.int32))
+        cols_list.append(np.array(col_indices, dtype=np.int32))
+        data_list.append(np.array(values, dtype=np.float16))
+    
+    if verbose:
+        print("Concatenating index and data arrays...")
+
+    if rows_list:
+        rows_array = np.concatenate(rows_list)
+        cols_array = np.concatenate(cols_list)
+        data_array = np.concatenate(data_list)
+        
+    else:
+        rows_array = np.array([], dtype=np.int32)
+        cols_array = np.array([], dtype=np.int32)
+        data_array = np.array([], dtype=np.float16)
+    
+    if verbose:
+        print("Preallocating dense matrix X on GPU...")
+
+    X = cp.zeros((num_sigs, num_keys), dtype=cp.float16)
+    
+    if verbose:
+        print("Performing vectorized assignment on GPU...")
+
+    gpu_rows = cp.array(rows_array)
+    gpu_cols = cp.array(cols_array)
+    gpu_data = cp.array(data_array, dtype=cp.float16)
+
+    X[gpu_rows, gpu_cols] = gpu_data
+    
+    if verbose:
+        print("Done!")
+        
+    return X, global_union
 
 ###################################################################################
 
 def counter_to_vector(counter, union_keys):
 
-    vec = np.zeros(union_keys.shape, dtype=float)
-    keys   = np.array(list(counter.keys()))
-    values = np.array(list(counter.values()), dtype=float)
-    indices = np.searchsorted(union_keys, keys)
+    vec = cp.zeros(union_keys.shape, dtype=cp.float16)
+    keys   = cp.array(list(counter.keys()))
+    values = cp.array(list(counter.values()), dtype=cp.float16)
+    indices = cp.searchsorted(union_keys, keys)
     vec[indices] = values
     
     return vec
-
-###################################################################################
-
-def precompute_signatures(signatures_dictionaries, verbose=True):
-
-    if verbose:
-        print('Creating signatures counters list...')
-    all_counters = [sig[1] for sig in signatures_dictionaries]
-
-    if verbose:
-        print('Creating counters global union array...')
-    global_union = np.array(sorted({key for counter in all_counters for key in counter.keys()}))
-
-
-    if verbose:
-        print('Creating counters vectors array...')
-    X = np.stack([counter_to_vector(sig[1], global_union) for sig in signatures_dictionaries])
-
-    if verbose:
-        print('Done!')
-
-    return X, global_union
 
 ###################################################################################
 
@@ -1885,27 +1956,27 @@ def get_distances_np(trg_signature_dictionary,
     mask_both = (X > 0) & (target_vec > 0)
 
     if use_abs_dist:
-        diff = np.where(mask_both,
-                        np.abs(X - target_vec),
+        diff = cp.where(mask_both,
+                        cp.abs(X - target_vec),
                         mismatch_penalty)        
 
     else:
         if use_min_max_ratios:           
-            diff = np.where(mask_both,
-                            1.0 - (np.minimum(X, target_vec) / np.maximum(X, target_vec)),
+            diff = cp.where(mask_both,
+                            1.0 - cp.divide(cp.minimum(X, target_vec), cp.maximum(X, target_vec), dtype=cp.float16),
                             mismatch_penalty)
         else:
-            safe_min = np.where(mask_both, np.minimum(X, target_vec) + eps, 1.0)
+            safe_min = cp.where(mask_both, cp.minimum(X, target_vec) + eps, 1.0)
             
-            diff = np.where(mask_both,
-                            (np.maximum(X, target_vec) / safe_min) - 1.0,
+            diff = cp.where(mask_both,
+                            cp.divide(cp.maximum(X, target_vec), safe_min, dtype=cp.float16) - 1.0,
                             mismatch_penalty)
     
     union_mask = (X > 0) | (target_vec > 0)
     
-    sum_term = np.sum((diff ** p) * union_mask, axis=1)
+    sum_term = cp.sum(cp.power(diff, p, dtype=cp.float64) * union_mask, axis=1, dtype=cp.float64)
     
-    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
+    return cp.cbrt(sum_term, dtype=cp.float64) if p == 3 else cp.power(sum_term, 1.0 / p, dtype=cp.float64)
 
 ###################################################################################
 
