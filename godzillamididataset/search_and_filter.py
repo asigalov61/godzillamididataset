@@ -1720,7 +1720,7 @@ def advanced_score_processor(raw_score,
 ###################################################################################
 
 def load_signatures(signatures_data, 
-                    use_full_signatures=False, 
+                    use_full_signatures=True, 
                     convert_counts_to_ratios=True,
                     omit_melodies=True,
                     omit_drums=True,
@@ -1751,8 +1751,9 @@ def load_signatures(signatures_data,
         if omit_melodies:
             if all([s[0] < 128 for s in sig[1]]):
                 sig[1] = []
-    
-        sigs_dicts.append([sig[0], dict(sig[1])])
+
+        if sig[1]:
+            sigs_dicts.append([sig[0], dict(sig[1])])
 
     return sigs_dicts
 
@@ -1762,8 +1763,7 @@ def get_distance(sig_dict1,
                  sig_dict2,
                  use_min_max_ratios=False,
                  use_abs_dist=False,
-                 mismatch_penalty=10,
-                 p=3
+                 mismatch_penalty=10
                 ):
 
     all_keys = set(sig_dict1.keys()) | set(sig_dict2.keys())
@@ -1790,17 +1790,17 @@ def get_distance(sig_dict1,
                         ratio = max(a, b) / min(a, b)
                         diff = ratio - 1
                     
-                total += diff ** p
+                total += diff
                 
             else:
                 diff = mismatch_penalty
-                total += diff ** p
+                total += diff
                 
         else:
             diff = mismatch_penalty
-            total += diff ** p
+            total += diff
             
-    return total ** (1.0 / p)
+    return total
 
 ###################################################################################
 
@@ -1809,7 +1809,6 @@ def get_distance_np(sig_dict1,
                     use_min_max_ratios=False,
                     use_abs_dist=False, 
                     mismatch_penalty=10, 
-                    p=3, 
                     eps=1e-10
                    ):
 
@@ -1853,9 +1852,9 @@ def get_distance_np(sig_dict1,
                             mismatch_penalty
                            )
 
-    sum_term = np.sum(np.power(diff, p, dtype=np.float64) * union_mask, dtype=np.float64)
+    sum_term = np.sum(diff * union_mask, dtype=np.float16)
     
-    return np.cbrt(sum_term, dtype=np.float64) if p == 3 else np.power(sum_term, 1.0 / p, dtype=np.float64)
+    return sum_term
 
 ###################################################################################
 
@@ -1947,7 +1946,6 @@ def get_distances_np(trg_signature_dictionary,
                      use_min_max_ratios=False,
                      use_abs_dist=False,
                      mismatch_penalty=10,
-                     p=3,
                      eps=1e-10
                     ):
 
@@ -1974,9 +1972,9 @@ def get_distances_np(trg_signature_dictionary,
     
     union_mask = (X > 0) | (target_vec > 0)
     
-    sum_term = cp.sum(cp.power(diff, p, dtype=cp.float64) * union_mask, axis=1, dtype=cp.float64)
+    sum_term = cp.sum(diff * union_mask, axis=1, dtype=cp.float16)
     
-    return cp.cbrt(sum_term, dtype=cp.float64) if p == 3 else cp.power(sum_term, 1.0 / p, dtype=cp.float64)
+    return sum_term
 
 ###################################################################################
 
@@ -2085,52 +2083,105 @@ def get_MIDI_signature(path_to_MIDI_file,
 def search_and_filter(sigs_dicts,
                       X,
                       global_union,
-                      godzilla_dir = './Godzilla-MIDI-Dataset/MIDIs/',
-                      master_dir = './Master-MIDI-Dataset/',
-                      output_dir = './Output-MIDI-Dataset/',
-                      number_of_top_matches_to_copy = 30,
+                      godzilla_dir='./Godzilla-MIDI-Dataset/MIDIs/',
+                      master_dir='./Master-MIDI-Dataset/',
+                      output_dir='./Output-MIDI-Dataset/',
+                      number_of_top_matches_to_copy=30,
                       include_original_midis=True,
-                      use_full_signatures=False,
+                      use_full_signatures=True,
                       transpose_factor=6,
                       convert_counts_to_ratios=True,
                       omit_drums=True,
                       use_min_max_ratios=False,
                       use_abs_dist=False,
-                      mismatch_penalty=10,
-                      p=3
+                      mismatch_penalty=10
                      ):
+    
+    """
+    Searches and filters MIDI files based on their computed signatures, then copies
+    the top matching segments from a source repository into an output directory.
+
+    The function performs the following process:
+    1. Lists MIDI files found in the master directory.
+    2. For each master MIDI file:
+       - Computes its signature using `get_MIDI_signature` (with options for full signatures,
+         ratio conversion, drum omission, and transposition adjustments).
+       - Iterates over each signature segment to compute a distance score (via `get_distances_np`)
+         against a provided feature matrix `X` and a global union of features.
+       - Sorts the distances to determine the most similar matches.
+       - Creates an output subdirectory (named after the master MIDI file) and, if specified,
+         copies the original MIDI file into it.
+       - Copies the top matching MIDI segments (up to `number_of_top_matches_to_copy`) from the
+         Godzilla repository if the file exists and similar match criteria have not already been used.
+    
+    Parameters:
+        sigs_dicts (list): List of signature data items where each element contains at least a filename.
+        X (array-like): Feature matrix against which the MIDI signatures are compared.
+        global_union: Data structure representing the union of all signature features.
+        godzilla_dir (str): Base directory for the Godzilla MIDI dataset.
+                             Default is './Godzilla-MIDI-Dataset/MIDIs/'.
+        master_dir (str): Directory containing the master MIDI files.
+                          Default is './Master-MIDI-Dataset/'.
+        output_dir (str): Directory where filtered MIDI files will be stored.
+                          Default is './Output-MIDI-Dataset/'.
+        number_of_top_matches_to_copy (int): Number of top matching files to copy per signature segment.
+                                             Default is 30.
+        include_original_midis (bool): If True, copies the original master MIDI file to the output folder.
+                                       Default is True.
+        use_full_signatures (bool): If False, computes basic signatures for each MIDI file.
+                                    Default is True.
+        transpose_factor (int): Controls the range for transposition adjustments (clamped between 0 and 6).
+                                Default is 6.
+        convert_counts_to_ratios (bool): If True, converts count-based metrics to ratios when computing signatures.
+                                         Default is True.
+        omit_drums (bool): If True, omits drum tracks from the signature computation.
+                           Default is True.
+        use_min_max_ratios (bool): Flag to determine type of normalization used in distance computation.
+                                   Default is False.
+        use_abs_dist (bool): If True, uses absolute distance measures when comparing signatures.
+                             Default is False.
+        mismatch_penalty (int): Penalty factor applied to mismatches during distance calculation.
+                                Default is 10.
+    
+    Returns:
+        None
+
+    Side Effects:
+        - Creates directories in `master_dir` and `output_dir` if they do not exist.
+        - Copies MIDI files from the Godzilla directory into structured subdirectories in the output directory.
+        - Prints progress information to the console.
+    """
 
     transpose_factor = max(0, min(6, transpose_factor))
     
     if transpose_factor > 0:
-        
         tsidx = -transpose_factor
         teidx = transpose_factor
-    
+        
     else:
         tsidx = 0
         teidx = 1
 
     master_midis = create_files_list([master_dir])
-
+    
     os.makedirs(master_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
    
     for fnum, midi in enumerate(master_midis):
-    
+        
         inp_fn = os.path.basename(midi)
-    
-        print('=' * 70)
-        print('Processing MIDI file #', fnum+1, '/', len(master_midis))
-        print('MIDI file name:', inp_fn)
-        print('=' * 70)
+        
+        print("=" * 70)
+        print("Processing MIDI file #", fnum + 1, "/", len(master_midis))
+        print("MIDI file name:", inp_fn)
+        print("=" * 70)
     
         trg_sigs = get_MIDI_signature(midi,
                                       return_full_signature=use_full_signatures,
                                       transpose_factor=transpose_factor,
                                       convert_counts_to_ratios=convert_counts_to_ratios,
                                       omit_drums=omit_drums,
-                                      )
+                                     )
     
         tv = list(range(tsidx, teidx))
         
@@ -2144,39 +2195,38 @@ def search_and_filter(sigs_dicts,
                                      global_union,
                                      use_min_max_ratios=use_min_max_ratios,
                                      use_abs_dist=use_abs_dist,
-                                     mismatch_penalty=mismatch_penalty,
-                                     p=p
-                                     )
+                                     mismatch_penalty=mismatch_penalty
+                                    )
         
-            sorted_indices = np.argsort(dists).tolist()
-    
+            sorted_indices = cp.argsort(dists).tolist()
             out_dir = os.path.splitext(inp_fn)[0]
     
-            os.makedirs(output_dir+'/'+out_dir, exist_ok=True)
+            midi_output_dir = os.path.join(output_dir, out_dir)
+            os.makedirs(midi_output_dir, exist_ok=True)
 
             if include_original_midis:
-                shutil.copy2(midi, output_dir+'/'+out_dir+'/'+inp_fn)
+                shutil.copy2(midi, os.path.join(midi_output_dir, inp_fn))
 
-            for _, idx in enumerate(sorted_indices[:number_of_top_matches_to_copy]):          
+            for _, idx in enumerate(sorted_indices[:number_of_top_matches_to_copy]):
                 
                 fn = sigs_dicts[idx][0]
                 dist = dists[idx]
-        
-                new_fn = output_dir+out_dir+'/'+str(dist)+'_'+str(tv[i])+'_'+fn+'.mid'
+                
+                new_fn = os.path.join(midi_output_dir, f"{dist}_{tv[i]}_{fn}.mid")
         
                 if fn not in seen and dist not in rseen:
-                    
-                    src_fn = godzilla_dir+fn[0]+'/'+fn+'.mid'
+                
+                    src_fn = os.path.join(godzilla_dir, fn[0], f"{fn}.mid")
                     
                     if os.path.exists(src_fn):
                         shutil.copy2(src_fn, new_fn)
                         seen.append(fn)
                         rseen.append(dist)
-
-    print('=' * 70)
-    print('Done!')
-    print('=' * 70)
-
+    
+    print("=" * 70)
+    print("Done!")
+    print("=" * 70)
+    
 ###################################################################################
 
 def consequtive_search_and_filter(sigs_dicts,
@@ -2185,14 +2235,13 @@ def consequtive_search_and_filter(sigs_dicts,
                                   output_dir = './Output-MIDI-Dataset/',
                                   number_of_top_matches_to_copy = 30,
                                   include_original_midis=True,
-                                  use_full_signatures=False,
+                                  use_full_signatures=True,
                                   transpose_factor=0,
                                   convert_counts_to_ratios=True,
                                   omit_drums=True,
                                   use_min_max_ratios=False,
                                   use_abs_dist=False,
-                                  mismatch_penalty=10,
-                                  p=3
+                                  mismatch_penalty=10
                                  ):
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2242,8 +2291,7 @@ def consequtive_search_and_filter(sigs_dicts,
                                        sig,   
                                        use_min_max_ratios=use_min_max_ratios,
                                        use_abs_dist=use_abs_dist,
-                                       mismatch_penalty=mismatch_penalty,
-                                       p=p
+                                       mismatch_penalty=mismatch_penalty
                                       )
 
                 dists.append(dist.tolist())
