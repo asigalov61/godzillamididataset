@@ -1720,7 +1720,7 @@ def advanced_score_processor(raw_score,
 def load_signatures(signatures_data, 
                     use_full_signatures=False, 
                     convert_counts_to_ratios=True,
-                    omit_melodies=False,
+                    omit_melodies=True,
                     omit_drums=True,
                     verbose=True
                    ):
