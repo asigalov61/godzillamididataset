@@ -1719,7 +1719,8 @@ def advanced_score_processor(raw_score,
 
 def load_signatures(signatures_data, 
                     use_full_signatures=False, 
-                    convert_counts_to_ratios=True, 
+                    convert_counts_to_ratios=True,
+                    omit_melodies=False,
                     omit_drums=True,
                     verbose=True
                    ):
@@ -1744,6 +1745,10 @@ def load_signatures(signatures_data,
         if convert_counts_to_ratios:
             tcount = sum([s[1] for s in sig[1] if s[0] > -1])
             sig = [sig[0], [[s[0], s[1] / tcount] for s in sig[1] if s[0] > -1]]
+
+        if omit_melodies:
+            if all([s[0] < 128 for s in sig[1]]):
+                sig[1] = []
     
         sigs_dicts.append([sig[0], dict(sig[1])])
 
@@ -1753,9 +1758,9 @@ def load_signatures(signatures_data,
 
 def get_distance(sig_dict1, 
                  sig_dict2,
-                 use_min_max_ratios=True,
+                 use_min_max_ratios=False,
                  use_abs_dist=False,
-                 mismatch_penalty=2,
+                 mismatch_penalty=10,
                  p=3
                 ):
 
@@ -1799,9 +1804,9 @@ def get_distance(sig_dict1,
 
 def get_distance_np(sig_dict1, 
                     sig_dict2,
-                    use_min_max_ratios=True,
+                    use_min_max_ratios=False,
                     use_abs_dist=False, 
-                    mismatch_penalty=2, 
+                    mismatch_penalty=10, 
                     p=3, 
                     eps=1e-10
                    ):
@@ -1868,9 +1873,9 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
 def get_distances_np(trg_signature_dictionary,
                      X,
                      global_union,
-                     use_min_max_ratios=True,
+                     use_min_max_ratios=False,
                      use_abs_dist=False,
-                     mismatch_penalty=2,
+                     mismatch_penalty=10,
                      p=3,
                      eps=1e-10
                     ):
@@ -2018,9 +2023,9 @@ def search_and_filter(sigs_dicts,
                       transpose_factor=6,
                       convert_counts_to_ratios=True,
                       omit_drums=True,
-                      use_min_max_ratios=True,
-                      use_abs_dist=True,
-                      mismatch_penalty=2,
+                      use_min_max_ratios=False,
+                      use_abs_dist=False,
+                      mismatch_penalty=10,
                       p=3
                      ):
 
@@ -2113,9 +2118,9 @@ def consequtive_search_and_filter(sigs_dicts,
                                   transpose_factor=0,
                                   convert_counts_to_ratios=True,
                                   omit_drums=True,
-                                  use_min_max_ratios=True,
-                                  use_abs_dist=True,
-                                  mismatch_penalty=2,
+                                  use_min_max_ratios=False,
+                                  use_abs_dist=False,
+                                  mismatch_penalty=10,
                                   p=3
                                  ):
 
