@@ -1753,8 +1753,9 @@ def load_signatures(signatures_data,
 
 def get_distance(sig_dict1, 
                  sig_dict2,
-                 use_abs_dist=True,
-                 mismatch_penalty=10,
+                 use_min_max_ratios=True,
+                 use_abs_dist=False,
+                 mismatch_penalty=2,
                  p=3
                 ):
 
@@ -1774,11 +1775,20 @@ def get_distance(sig_dict1,
                     diff = abs(a - b)
                 
                 else:
-                    ratio = max(a, b) / min(a, b)
-                    diff = ratio - 1
+                    if use_min_max_ratios:
+                        ratio = min(a, b) / max(a, b)
+                        diff = 1 - ratio
+
+                    else:
+                        ratio = max(a, b) / min(a, b)
+                        diff = ratio - 1
                     
                 total += diff ** p
-
+                
+            else:
+                diff = mismatch_penalty
+                total += diff ** p
+                
         else:
             diff = mismatch_penalty
             total += diff ** p
@@ -1788,9 +1798,10 @@ def get_distance(sig_dict1,
 ###################################################################################
 
 def get_distance_np(sig_dict1, 
-                    sig_dict2, 
-                    use_abs_dist=True, 
-                    mismatch_penalty=10, 
+                    sig_dict2,
+                    use_min_max_ratios=True,
+                    use_abs_dist=False, 
+                    mismatch_penalty=2, 
                     p=3, 
                     eps=1e-10
                    ):
@@ -1803,13 +1814,16 @@ def get_distance_np(sig_dict1,
     mask = (freq1 > 0) & (freq2 > 0)
     union_mask = (freq1 > 0) | (freq2 > 0)
 
-    safe_min = np.where(mask, np.minimum(freq1, freq2) + eps, 1.0)
-
     if use_abs_dist:
         diff = np.where(mask, np.abs(freq1 - freq2), mismatch_penalty)
 
     else:
-        diff = np.where(mask, (np.maximum(freq1, freq2) / safe_min) - 1.0, mismatch_penalty)
+        if use_min_max_ratios:
+            diff = np.where(mask, 1.0 - (np.minimum(freq1, freq2) / np.maximum(freq1, freq2)), mismatch_penalty)
+
+        else:
+            safe_min = np.where(mask, np.minimum(freq1, freq2) + eps, 1.0)
+            diff = np.where(mask, (np.maximum(freq1, freq2) / safe_min) - 1.0, mismatch_penalty)
 
     sum_term = np.sum((diff ** p) * union_mask)
     
@@ -1854,8 +1868,9 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
 def get_distances_np(trg_signature_dictionary,
                      X,
                      global_union,
-                     use_abs_dist=True,
-                     mismatch_penalty=10,
+                     use_min_max_ratios=True,
+                     use_abs_dist=False,
+                     mismatch_penalty=2,
                      p=3,
                      eps=1e-10
                     ):
@@ -1870,11 +1885,16 @@ def get_distances_np(trg_signature_dictionary,
                         mismatch_penalty)        
 
     else:
-        safe_min = np.where(mask_both, np.minimum(X, target_vec) + eps, 1.0)
-        
-        diff = np.where(mask_both,
-                        (np.maximum(X, target_vec) / safe_min) - 1.0,
-                        mismatch_penalty)
+        if use_min_max_ratios:           
+            diff = np.where(mask_both,
+                            1.0 - (np.minimum(X, target_vec) / np.maximum(X, target_vec)),
+                            mismatch_penalty)
+        else:
+            safe_min = np.where(mask_both, np.minimum(X, target_vec) + eps, 1.0)
+            
+            diff = np.where(mask_both,
+                            (np.maximum(X, target_vec) / safe_min) - 1.0,
+                            mismatch_penalty)
     
     union_mask = (X > 0) | (target_vec > 0)
     
@@ -1998,8 +2018,9 @@ def search_and_filter(sigs_dicts,
                       transpose_factor=6,
                       convert_counts_to_ratios=True,
                       omit_drums=True,
+                      use_min_max_ratios=True,
                       use_abs_dist=True,
-                      mismatch_penalty=10,
+                      mismatch_penalty=2,
                       p=3
                      ):
 
@@ -2045,11 +2066,114 @@ def search_and_filter(sigs_dicts,
             dists = get_distances_np(trg_sigs[i],
                                      X,
                                      global_union,
+                                     use_min_max_ratios=use_min_max_ratios,
                                      use_abs_dist=use_abs_dist,
                                      mismatch_penalty=mismatch_penalty,
                                      p=p
                                      )
         
+            sorted_indices = np.argsort(dists).tolist()
+    
+            out_dir = os.path.splitext(inp_fn)[0]
+    
+            os.makedirs(output_dir+'/'+out_dir, exist_ok=True)
+
+            if include_original_midis:
+                shutil.copy2(midi, output_dir+'/'+out_dir+'/'+inp_fn)
+
+            for _, idx in enumerate(sorted_indices[:number_of_top_matches_to_copy]):          
+                
+                fn = sigs_dicts[idx][0]
+                dist = dists[idx]
+        
+                new_fn = output_dir+out_dir+'/'+str(dist)+'_'+str(tv[i])+'_'+fn+'.mid'
+        
+                if fn not in seen and dist not in rseen:
+                    
+                    src_fn = godzilla_dir+fn[0]+'/'+fn+'.mid'
+                    
+                    if os.path.exists(src_fn):
+                        shutil.copy2(src_fn, new_fn)
+                        seen.append(fn)
+                        rseen.append(dist)
+
+    print('=' * 70)
+    print('Done!')
+    print('=' * 70)
+
+###################################################################################
+
+def consequtive_search_and_filter(sigs_dicts,
+                                  godzilla_dir = './Godzilla-MIDI-Dataset/MIDIs/',
+                                  master_dir = './Master-MIDI-Dataset/',
+                                  output_dir = './Output-MIDI-Dataset/',
+                                  number_of_top_matches_to_copy = 30,
+                                  include_original_midis=True,
+                                  use_full_signatures=False,
+                                  transpose_factor=0,
+                                  convert_counts_to_ratios=True,
+                                  omit_drums=True,
+                                  use_min_max_ratios=True,
+                                  use_abs_dist=True,
+                                  mismatch_penalty=2,
+                                  p=3
+                                 ):
+
+    transpose_factor = max(0, min(6, transpose_factor))
+    
+    if transpose_factor > 0:
+        
+        tsidx = -transpose_factor
+        teidx = transpose_factor
+    
+    else:
+        tsidx = 0
+        teidx = 1
+
+    master_midis = create_files_list([master_dir])
+
+    os.makedirs(master_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+   
+    for fnum, midi in enumerate(master_midis):
+    
+        inp_fn = os.path.basename(midi)
+    
+        print('=' * 70)
+        print('Processing MIDI file #', fnum+1, '/', len(master_midis))
+        print('MIDI file name:', inp_fn)
+        print('=' * 70)
+    
+        trg_sigs = get_MIDI_signature(midi,
+                                      return_full_signature=use_full_signatures,
+                                      transpose_factor=transpose_factor,
+                                      convert_counts_to_ratios=convert_counts_to_ratios,
+                                      omit_drums=omit_drums,
+                                      )
+    
+        tv = list(range(tsidx, teidx))
+        
+        seen = []
+        rseen = []
+    
+        for i in range(len(trg_sigs)):
+
+            dists = []
+            
+            for md5, sig in tqdm.tqdm(sigs_dicts, desc=f'Processing target signature {i+1}'):
+            
+                dist = get_distance_np(trg_sigs[i],
+                                       sig,   
+                                       use_min_max_ratios=use_min_max_ratios,
+                                       use_abs_dist=use_abs_dist,
+                                       mismatch_penalty=mismatch_penalty,
+                                       p=p
+                                      )
+
+                dists.append(dist.tolist())
+
+            dists = np.array(dists)
+    
             sorted_indices = np.argsort(dists).tolist()
     
             out_dir = os.path.splitext(inp_fn)[0]
