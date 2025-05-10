@@ -38,7 +38,7 @@
 
 ```sh
 # The following command will install Godzilla MIDI Dataset for fast GPU search
-# Please note that GPU search requires at least 80GB GPU VRAM for full searches
+# Please note that GPU search requires at least 24GB GPU VRAM for full searches
 
 !pip install -U godzillamididataset[gpu]
 ```
