@@ -1762,8 +1762,7 @@ def get_distance(sig_dict1,
                  sig_dict2,
                  use_min_max_ratios=False,
                  use_abs_dist=False,
-                 mismatch_penalty=10,
-                 p=3
+                 mismatch_penalty=10
                 ):
 
     all_keys = set(sig_dict1.keys()) | set(sig_dict2.keys())
@@ -1790,17 +1789,17 @@ def get_distance(sig_dict1,
                         ratio = max(a, b) / min(a, b)
                         diff = ratio - 1
                     
-                total += diff ** p
+                total += diff
                 
             else:
                 diff = mismatch_penalty
-                total += diff ** p
+                total += diff
                 
         else:
             diff = mismatch_penalty
-            total += diff ** p
+            total += diff
             
-    return total ** (1.0 / p)
+    return total
 
 ###################################################################################
 
@@ -1809,7 +1808,6 @@ def get_distance_np(sig_dict1,
                     use_min_max_ratios=False,
                     use_abs_dist=False, 
                     mismatch_penalty=10, 
-                    p=3, 
                     eps=1e-10
                    ):
 
@@ -1853,9 +1851,9 @@ def get_distance_np(sig_dict1,
                             mismatch_penalty
                            )
 
-    sum_term = np.sum(np.power(diff, p, dtype=np.float64) * union_mask, dtype=np.float64)
+    sum_term = np.sum(diff * union_mask, dtype=np.float16)
     
-    return np.cbrt(sum_term, dtype=np.float64) if p == 3 else np.power(sum_term, 1.0 / p, dtype=np.float64)
+    return sum_term
 
 ###################################################################################
 
@@ -1947,7 +1945,6 @@ def get_distances_np(trg_signature_dictionary,
                      use_min_max_ratios=False,
                      use_abs_dist=False,
                      mismatch_penalty=10,
-                     p=3,
                      eps=1e-10
                     ):
 
@@ -1974,9 +1971,9 @@ def get_distances_np(trg_signature_dictionary,
     
     union_mask = (X > 0) | (target_vec > 0)
     
-    sum_term = cp.sum(cp.power(diff, p, dtype=cp.float64) * union_mask, axis=1, dtype=cp.float64)
+    sum_term = np.sum(diff * union_mask, axis=1, dtype=np.float16)
     
-    return cp.cbrt(sum_term, dtype=cp.float64) if p == 3 else cp.power(sum_term, 1.0 / p, dtype=cp.float64)
+    return sum_term
 
 ###################################################################################
 
@@ -2096,8 +2093,7 @@ def search_and_filter(sigs_dicts,
                       omit_drums=True,
                       use_min_max_ratios=False,
                       use_abs_dist=False,
-                      mismatch_penalty=10,
-                      p=3
+                      mismatch_penalty=10
                      ):
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2144,8 +2140,7 @@ def search_and_filter(sigs_dicts,
                                      global_union,
                                      use_min_max_ratios=use_min_max_ratios,
                                      use_abs_dist=use_abs_dist,
-                                     mismatch_penalty=mismatch_penalty,
-                                     p=p
+                                     mismatch_penalty=mismatch_penalty
                                      )
         
             sorted_indices = np.argsort(dists).tolist()
@@ -2191,8 +2186,7 @@ def consequtive_search_and_filter(sigs_dicts,
                                   omit_drums=True,
                                   use_min_max_ratios=False,
                                   use_abs_dist=False,
-                                  mismatch_penalty=10,
-                                  p=3
+                                  mismatch_penalty=10
                                  ):
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2242,8 +2236,7 @@ def consequtive_search_and_filter(sigs_dicts,
                                        sig,   
                                        use_min_max_ratios=use_min_max_ratios,
                                        use_abs_dist=use_abs_dist,
-                                       mismatch_penalty=mismatch_penalty,
-                                       p=p
+                                       mismatch_penalty=mismatch_penalty
                                       )
 
                 dists.append(dist.tolist())
