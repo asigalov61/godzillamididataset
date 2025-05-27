@@ -7,7 +7,7 @@
 
 ## Dataset features
 
-### 1) Over 5.43M+ unique, de-duped and normalized MIDIs
+### 1) Over 5.63M+ unique, de-duped and normalized MIDIs
 ### 2) Each MIDI was converted to proper MIDI format specification and checked for integrity
 ### 3) Dataset was de-duped twice: by md5 hashes and by pitches-patches counts
 ### 4) Extensive and comprehansive (meta)data was collected from all MIDIs in the dataset
@@ -75,7 +75,7 @@
 import godzillamididataset
 
 # Download Godzilla MIDI Dataset from Hugging Face repo
-godzillamididataset.donwload_dataset()
+godzillamididataset.download_dataset()
 
 # Extract Godzilla MIDI Dataset with built-in function (slow)
 godzillamididataset.parallel_extract()
@@ -262,6 +262,15 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
   year={2025},
   url={https://openreview.net/forum?id=X5hrhgndxW}, 
 }
+```
+
+```bibtex
+@misc{TegridyMIDIDataset2025,
+  title        = {Tegridy MIDI Dataset: Ultimate Multi-Instrumental MIDI Dataset for MIR and Music AI purposes},
+  author       = {Alex Lev},
+  publisher    = {Project Los Angeles / Tegridy Code},
+  year         = {2025},
+  url          = {https://github.com/asigalov61/Tegridy-MIDI-Dataset}
 ```
 
 ***
