@@ -5,7 +5,7 @@ r'''############################################################################
 #
 #
 #	Godzilla Search and Filter Python Module
-#	Version 1.0
+#	Version 2.0
 #
 #   NOTE: Module code starts after the partial MIDI.py module @ line 1122
 #
@@ -128,8 +128,8 @@ try:
     print('Will use CuPy and GPU for processing!')
 
 except:
-    import numpy as np
     import numpy as cp
+    import numpy as np
     print('Could not load CuPy!')
     print('Will use NumPy and CPU for processing!')
     
@@ -1478,16 +1478,107 @@ def augment_enhanced_score_notes(enhanced_score_notes,
 
 ###################################################################################
 
+def compute_sustain_intervals(events):
+
+    intervals = []
+    pedal_on = False
+    current_start = None
+    
+    for t, cc in events:
+        if not pedal_on and cc >= 64:
+
+            pedal_on = True
+            current_start = t
+        elif pedal_on and cc < 64:
+
+            pedal_on = False
+            intervals.append((current_start, t))
+            current_start = None
+
+    if pedal_on:
+        intervals.append((current_start, float('inf')))
+
+    merged = []
+    
+    for interval in intervals:
+        if merged and interval[0] <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], interval[1]))
+            
+        else:
+            merged.append(interval)
+            
+    return merged
+
+###################################################################################
+
+def apply_sustain_to_ms_score(score):
+
+    sustain_by_channel = {}
+    
+    for track in score[1:]:
+        for event in track:
+            if event[0] == 'control_change' and event[3] == 64:
+                channel = event[2]
+                sustain_by_channel.setdefault(channel, []).append((event[1], event[4]))
+    
+    sustain_intervals_by_channel = {}
+    
+    for channel, events in sustain_by_channel.items():
+        events.sort(key=lambda x: x[0])
+        sustain_intervals_by_channel[channel] = compute_sustain_intervals(events)
+    
+    global_max_off = 0
+    
+    for track in score[1:]:
+        for event in track:
+            if event[0] == 'note':
+                global_max_off = max(global_max_off, event[1] + event[2])
+                
+    for channel, intervals in sustain_intervals_by_channel.items():
+        updated_intervals = []
+        for start, end in intervals:
+            if end == float('inf'):
+                end = global_max_off
+            updated_intervals.append((start, end))
+        sustain_intervals_by_channel[channel] = updated_intervals
+        
+    if sustain_intervals_by_channel:
+        
+        for track in score[1:]:
+            for event in track:
+                if event[0] == 'note':
+                    start = event[1]
+                    nominal_dur = event[2]
+                    nominal_off = start + nominal_dur
+                    channel = event[3]
+                    
+                    intervals = sustain_intervals_by_channel.get(channel, [])
+                    effective_off = nominal_off
+        
+                    for intv_start, intv_end in intervals:
+                        if intv_start < nominal_off < intv_end:
+                            effective_off = intv_end
+                            break
+                    
+                    effective_dur = effective_off - start
+                    
+                    event[2] = effective_dur
+
+    return score
+
+###################################################################################
+
 def advanced_score_processor(raw_score, 
-                              patches_to_analyze=list(range(129)), 
-                              return_score_analysis=False,
-                              return_enhanced_score=False,
-                              return_enhanced_score_notes=False,
-                              return_enhanced_monophonic_melody=False,
-                              return_chordified_enhanced_score=False,
-                              return_chordified_enhanced_score_with_lyrics=False,
-                              return_score_tones_chords=False,
-                              return_text_and_lyric_events=False
+                             patches_to_analyze=list(range(129)), 
+                             return_score_analysis=False,
+                             return_enhanced_score=False,
+                             return_enhanced_score_notes=False,
+                             return_enhanced_monophonic_melody=False,
+                             return_chordified_enhanced_score=False,
+                             return_chordified_enhanced_score_with_lyrics=False,
+                             return_score_tones_chords=False,
+                             return_text_and_lyric_events=False,
+                             apply_sustain=False  
                             ):
 
   '''TMIDIX Advanced Score Processor'''
@@ -1516,6 +1607,20 @@ def advanced_score_processor(raw_score,
               basic_single_track_score.append(ev)
             num_tracks += 1
 
+      for e in basic_single_track_score:
+
+          if e[0] == 'note':
+              e[3] = e[3] % 16
+              e[4] = e[4] % 128
+              e[5] = e[5] % 128
+
+          if e[0] == 'patch_change':
+              e[2] = e[2] % 16
+              e[3] = e[3] % 128
+
+      if apply_sustain:
+          apply_sustain_to_ms_score([1000, basic_single_track_score])
+          
       basic_single_track_score.sort(key=lambda x: x[4] if x[0] == 'note' else 128, reverse=True)
       basic_single_track_score.sort(key=lambda x: x[1])
 
@@ -1530,7 +1635,7 @@ def advanced_score_processor(raw_score,
               enhanced_single_track_score.append(event)
               num_patch_changes += 1
 
-        if event[0] == 'note':
+        if event[0] == 'note':            
             if event[3] != 9:
               event.extend([patches[event[3]]])
               all_score_patches.extend([patches[event[3]]])
@@ -1763,7 +1868,8 @@ def get_distance(sig_dict1,
                  sig_dict2,
                  use_min_max_ratios=False,
                  use_abs_dist=False,
-                 mismatch_penalty=10
+                 mismatch_penalty=10,
+                 p=3
                 ):
 
     all_keys = set(sig_dict1.keys()) | set(sig_dict2.keys())
@@ -1790,17 +1896,17 @@ def get_distance(sig_dict1,
                         ratio = max(a, b) / min(a, b)
                         diff = ratio - 1
                     
-                total += diff
+                total += diff ** p
                 
             else:
                 diff = mismatch_penalty
-                total += diff
+                total += diff ** p
                 
         else:
             diff = mismatch_penalty
-            total += diff
+            total += diff ** p
             
-    return total
+    return total ** (1.0 / p)
 
 ###################################################################################
 
@@ -1808,7 +1914,8 @@ def get_distance_np(sig_dict1,
                     sig_dict2,
                     use_min_max_ratios=False,
                     use_abs_dist=False, 
-                    mismatch_penalty=10, 
+                    mismatch_penalty=10,
+                    p=3,
                     eps=1e-10
                    ):
 
@@ -1851,10 +1958,10 @@ def get_distance_np(sig_dict1,
                                         1.0, dtype=np.float16), 
                             mismatch_penalty
                            )
-
-    sum_term = np.sum(diff * union_mask, dtype=np.float16)
     
-    return sum_term
+    sum_term = np.sum((diff ** p) * union_mask, dtype=np.float16)
+    
+    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
 
 ###################################################################################
 
@@ -1934,6 +2041,7 @@ def counter_to_vector(counter, union_keys):
     keys   = cp.array(list(counter.keys()))
     values = cp.array(list(counter.values()), dtype=cp.float16)
     indices = cp.searchsorted(union_keys, keys)
+    
     vec[indices] = values
     
     return vec
@@ -1946,6 +2054,7 @@ def get_distances_np(trg_signature_dictionary,
                      use_min_max_ratios=False,
                      use_abs_dist=False,
                      mismatch_penalty=10,
+                     p=3,
                      eps=1e-10
                     ):
 
@@ -1972,9 +2081,9 @@ def get_distances_np(trg_signature_dictionary,
     
     union_mask = (X > 0) | (target_vec > 0)
     
-    sum_term = cp.sum(diff * union_mask, axis=1, dtype=cp.float16)
+    sum_term = cp.sum((diff ** p) * union_mask, axis=1, dtype=cp.float16)
     
-    return sum_term
+    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
 
 ###################################################################################
 
@@ -2094,7 +2203,8 @@ def search_and_filter(sigs_dicts,
                       omit_drums=True,
                       use_min_max_ratios=False,
                       use_abs_dist=False,
-                      mismatch_penalty=10
+                      mismatch_penalty=10,
+                      p=3
                      ):
     
     """
@@ -2142,6 +2252,8 @@ def search_and_filter(sigs_dicts,
                              Default is False.
         mismatch_penalty (int): Penalty factor applied to mismatches during distance calculation.
                                 Default is 10.
+
+        p (int): p value for distances calculations. Default is 3 (Minkowski)
     
     Returns:
         None
@@ -2195,7 +2307,8 @@ def search_and_filter(sigs_dicts,
                                      global_union,
                                      use_min_max_ratios=use_min_max_ratios,
                                      use_abs_dist=use_abs_dist,
-                                     mismatch_penalty=mismatch_penalty
+                                     mismatch_penalty=mismatch_penalty,
+                                     p=p
                                     )
         
             sorted_indices = cp.argsort(dists).tolist()
@@ -2241,7 +2354,8 @@ def consequtive_search_and_filter(sigs_dicts,
                                   omit_drums=True,
                                   use_min_max_ratios=False,
                                   use_abs_dist=False,
-                                  mismatch_penalty=10
+                                  mismatch_penalty=10,
+                                  p=3
                                  ):
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2291,7 +2405,8 @@ def consequtive_search_and_filter(sigs_dicts,
                                        sig,   
                                        use_min_max_ratios=use_min_max_ratios,
                                        use_abs_dist=use_abs_dist,
-                                       mismatch_penalty=mismatch_penalty
+                                       mismatch_penalty=mismatch_penalty,
+                                       p=3
                                       )
 
                 dists.append(dist.tolist())
@@ -2445,32 +2560,35 @@ def parallel_extract(tar_path: str = './Godzilla-MIDI-Dataset/Godzilla-MIDI-Data
 
 ###################################################################################
 
-def donwload_dataset(repo_id='projectlosangeles/Godzilla-MIDI-Dataset',
+def download_dataset(repo_id='projectlosangeles/Godzilla-MIDI-Dataset',
                      filename='Godzilla-MIDI-Dataset-CC-BY-NC-SA.tar.gz',
                      local_dir='./Godzilla-MIDI-Dataset/'
                     ):
 
-    hf_hub_download(repo_id=repo_id,
-                    repo_type='dataset',
-                    filename=filename,
-                    local_dir=local_dir
-                   )
+    result = hf_hub_download(repo_id=repo_id,
+                             repo_type='dataset',
+                             filename=filename,
+                             local_dir=local_dir
+                            )
+
+    return result
 
 ###################################################################################
 
 def signatures_from_files_list(files_list='./Godzilla-MIDI-Dataset/DATA/Files Lists/identified_midis_files_list.jsonl',
                                signatures_list='./Godzilla-MIDI-Dataset/DATA/Signatures/all_midis_signatures.jsonl',
+                               max_lines=-1,
                                verbose=True
                               ):
     
     if type(files_list) == str:
-        fi_lst = read_jsonl(files_list, verbose=verbose)
+        fi_lst = read_jsonl(files_list, max_lines=max_lines, verbose=verbose)
 
     else:
         fi_lst = files_list
 
     if type(signatures_list) == str:
-        sig_lst = read_jsonl(signatures_list, verbose=verbose)
+        sig_lst = read_jsonl(signatures_list, max_lines=max_lines, verbose=verbose)
 
     else:
         sig_lst = signatures_list
