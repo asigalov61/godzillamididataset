@@ -38,7 +38,7 @@
 
 ```sh
 # The following command will install Godzilla MIDI Dataset for fast GPU search
-# Please note that GPU search requires at least 80GB GPU VRAM for full searches
+# Please note that GPU search requires at least 24GB GPU VRAM for full searches
 
 !pip install -U godzillamididataset[gpu]
 ```
@@ -262,6 +262,15 @@ Godzilla-MIDI-Dataset/              # Dataset root dir
   year={2025},
   url={https://openreview.net/forum?id=X5hrhgndxW}, 
 }
+```
+
+```bibtex
+@misc{TegridyMIDIDataset2025,
+  title        = {Tegridy MIDI Dataset: Ultimate Multi-Instrumental MIDI Dataset for MIR and Music AI purposes},
+  author       = {Alex Lev},
+  publisher    = {Project Los Angeles / Tegridy Code},
+  year         = {2025},
+  url          = {https://github.com/asigalov61/Tegridy-MIDI-Dataset}
 ```
 
 ***
