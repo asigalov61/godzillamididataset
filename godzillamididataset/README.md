@@ -7,7 +7,7 @@
 
 ## Dataset features
 
-### 1) Over 5.63M+ unique, de-duped and normalized MIDIs
+### 1) Over 5.8M+ unique, de-duped and normalized MIDIs
 ### 2) Each MIDI was converted to proper MIDI format specification and checked for integrity
 ### 3) Dataset was de-duped twice: by md5 hashes and by pitches-patches counts
 ### 4) Extensive and comprehansive (meta)data was collected from all MIDIs in the dataset
@@ -38,7 +38,7 @@
 
 ```sh
 # The following command will install Godzilla MIDI Dataset for fast GPU search
-# Please note that GPU search requires at least 24GB GPU VRAM for full searches
+# Please note that GPU search requires at least 30GB GPU VRAM for full searches at float16 precision
 
 !pip install -U godzillamididataset[gpu]
 ```
