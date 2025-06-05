@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "godzillamididataset"
-version = "25.5.27"
+version = "25.6.4"
 description = "Enormous, comprehensive, normalized and searchable MIDI dataset for MIR and symbolic music AI purposes"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
