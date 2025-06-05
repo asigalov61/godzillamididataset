@@ -7,7 +7,7 @@
 
 ## Dataset features
 
-### 1) Over 5.79M+ unique, de-duped and normalized MIDIs
+### 1) Over 5.8M+ unique, de-duped and normalized MIDIs
 ### 2) Each MIDI was converted to proper MIDI format specification and checked for integrity
 ### 3) Dataset was de-duped twice: by md5 hashes and by pitches-patches counts
 ### 4) Extensive and comprehansive (meta)data was collected from all MIDIs in the dataset
