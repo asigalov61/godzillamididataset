@@ -1890,11 +1890,11 @@ def get_distance(sig_dict1,
                 else:
                     if use_min_max_ratios:
                         ratio = min(a, b) / max(a, b)
-                        diff = 1 - ratio
+                        diff = abs(1 - ratio)
 
                     else:
                         ratio = max(a, b) / min(a, b)
-                        diff = ratio - 1
+                        diff = abs(ratio - 1)
                     
                 total += diff ** p
                 
@@ -1916,13 +1916,14 @@ def get_distance_np(sig_dict1,
                     use_abs_dist=False, 
                     mismatch_penalty=10,
                     p=3,
-                    eps=1e-10
+                    eps=1e-10,
+                    dtype=np.float32
                    ):
 
     keys = list(set(sig_dict1.keys()) | set(sig_dict2.keys()))
 
-    freq1 = np.array([sig_dict1.get(k, 0) for k in keys], dtype=np.float16)
-    freq2 = np.array([sig_dict2.get(k, 0) for k in keys], dtype=np.float16)
+    freq1 = np.array([sig_dict1.get(k, 0) for k in keys], dtype=dtype)
+    freq2 = np.array([sig_dict2.get(k, 0) for k in keys], dtype=dtype)
 
     mask = (freq1 > 0) & (freq2 > 0)
     union_mask = (freq1 > 0) | (freq2 > 0)
@@ -1931,7 +1932,7 @@ def get_distance_np(sig_dict1,
         diff = np.where(mask, 
                         np.abs(np.subtract(freq1, 
                                            freq2, 
-                                           dtype=np.float16)
+                                           dtype=dtype)
                               ), 
                         mismatch_penalty
                        )
@@ -1942,9 +1943,9 @@ def get_distance_np(sig_dict1,
                             np.subtract(1.0, 
                                         np.divide(np.minimum(freq1, freq2), 
                                                   np.maximum(freq1, freq2), 
-                                                  dtype=np.float16
+                                                  dtype=dtype
                                                  ),
-                                        dtype=np.float16), 
+                                        dtype=dtype), 
                             mismatch_penalty
                            )
 
@@ -1953,19 +1954,23 @@ def get_distance_np(sig_dict1,
             diff = np.where(mask, 
                             np.subtract(np.divide(np.maximum(freq1, freq2), 
                                                   safe_min, 
-                                                  dtype=np.float16
+                                                  dtype=dtype
                                                  ), 
-                                        1.0, dtype=np.float16), 
+                                        1.0, dtype=dtype), 
                             mismatch_penalty
                            )
     
-    sum_term = np.sum((diff ** p) * union_mask, dtype=np.float16)
+    sum_term = np.sum(np.power(np.abs(diff), p, dtype=dtype) * union_mask, dtype=dtype)
     
-    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
+    return np.cbrt(sum_term, dtype=dtype) if p == 3 else np.power(sum_term, np.divide(1.0, p, dtype=dtype), dtype=dtype)
 
 ###################################################################################
 
-def precompute_signatures(signatures_dictionaries, verbose=True):
+def precompute_signatures(signatures_dictionaries,
+                          cpu_dtype=np.float32,
+                          gpu_dtype=cp.float32,
+                          verbose=True
+                         ):
     
     if verbose:
         print("Creating global union array...")
@@ -1999,7 +2004,7 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
 
         rows_list.append(np.full(n_entries, i, dtype=np.int32))
         cols_list.append(np.array(col_indices, dtype=np.int32))
-        data_list.append(np.array(values, dtype=np.float16))
+        data_list.append(np.array(values, dtype=cpu_dtype))
     
     if verbose:
         print("Concatenating index and data arrays...")
@@ -2012,19 +2017,19 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
     else:
         rows_array = np.array([], dtype=np.int32)
         cols_array = np.array([], dtype=np.int32)
-        data_array = np.array([], dtype=np.float16)
+        data_array = np.array([], dtype=cpu_dtype)
     
     if verbose:
         print("Preallocating dense matrix X on GPU...")
 
-    X = cp.zeros((num_sigs, num_keys), dtype=cp.float16)
+    X = cp.zeros((num_sigs, num_keys), dtype=gpu_dtype)
     
     if verbose:
         print("Performing vectorized assignment on GPU...")
 
     gpu_rows = cp.array(rows_array)
     gpu_cols = cp.array(cols_array)
-    gpu_data = cp.array(data_array, dtype=cp.float16)
+    gpu_data = cp.array(data_array, dtype=gpu_dtype)
 
     X[gpu_rows, gpu_cols] = gpu_data
     
@@ -2035,11 +2040,11 @@ def precompute_signatures(signatures_dictionaries, verbose=True):
 
 ###################################################################################
 
-def counter_to_vector(counter, union_keys):
+def counter_to_vector(counter, union_keys, dtype=cp.float32):
 
-    vec = cp.zeros(union_keys.shape, dtype=cp.float16)
+    vec = cp.zeros(union_keys.shape, dtype=dtype)
     keys   = cp.array(list(counter.keys()))
-    values = cp.array(list(counter.values()), dtype=cp.float16)
+    values = cp.array(list(counter.values()), dtype=dtype)
     indices = cp.searchsorted(union_keys, keys)
     
     vec[indices] = values
@@ -2055,7 +2060,8 @@ def get_distances_np(trg_signature_dictionary,
                      use_abs_dist=False,
                      mismatch_penalty=10,
                      p=3,
-                     eps=1e-10
+                     eps=1e-10,
+                     dtype=cp.float32
                     ):
 
     target_vec = counter_to_vector(trg_signature_dictionary, global_union)
@@ -2064,26 +2070,26 @@ def get_distances_np(trg_signature_dictionary,
 
     if use_abs_dist:
         diff = cp.where(mask_both,
-                        cp.abs(X - target_vec),
+                        cp.abs(cp.subtract(X, target_vec, dtype=dtype), dtype=dtype),
                         mismatch_penalty)        
 
     else:
         if use_min_max_ratios:           
             diff = cp.where(mask_both,
-                            1.0 - cp.divide(cp.minimum(X, target_vec), cp.maximum(X, target_vec), dtype=cp.float16),
+                            1.0 - cp.divide(cp.minimum(X, target_vec), cp.maximum(X, target_vec), dtype=dtype),
                             mismatch_penalty)
         else:
             safe_min = cp.where(mask_both, cp.minimum(X, target_vec) + eps, 1.0)
             
             diff = cp.where(mask_both,
-                            cp.divide(cp.maximum(X, target_vec), safe_min, dtype=cp.float16) - 1.0,
+                            cp.divide(cp.maximum(X, target_vec), safe_min, dtype=dtype) - 1.0,
                             mismatch_penalty)
     
     union_mask = (X > 0) | (target_vec > 0)
     
-    sum_term = cp.sum((diff ** p) * union_mask, axis=1, dtype=cp.float16)
+    sum_term = cp.sum(cp.power(np.abs(diff), p, dtype=dtype) * union_mask, axis=1, dtype=dtype)
     
-    return np.cbrt(sum_term) if p == 3 else np.power(sum_term, 1.0 / p)
+    return np.cbrt(sum_term, dtype=dtype) if p == 3 else np.power(sum_term, cp.divide(1.0, p, dtype=dtype), dtype=dtype)
 
 ###################################################################################
 
@@ -2204,64 +2210,102 @@ def search_and_filter(sigs_dicts,
                       use_min_max_ratios=False,
                       use_abs_dist=False,
                       mismatch_penalty=10,
-                      p=3
+                      p=3,
+                      dtype=cp.float32
                      ):
     
     """
-    Searches and filters MIDI files based on their computed signatures, then copies
-    the top matching segments from a source repository into an output directory.
-
-    The function performs the following process:
-    1. Lists MIDI files found in the master directory.
-    2. For each master MIDI file:
-       - Computes its signature using `get_MIDI_signature` (with options for full signatures,
-         ratio conversion, drum omission, and transposition adjustments).
-       - Iterates over each signature segment to compute a distance score (via `get_distances_np`)
-         against a provided feature matrix `X` and a global union of features.
-       - Sorts the distances to determine the most similar matches.
-       - Creates an output subdirectory (named after the master MIDI file) and, if specified,
-         copies the original MIDI file into it.
-       - Copies the top matching MIDI segments (up to `number_of_top_matches_to_copy`) from the
-         Godzilla repository if the file exists and similar match criteria have not already been used.
+    Processes a collection of MIDI files by computing their signatures, comparing them against a reference signature set,
+    and filtering/copying the top matching MIDI files into an output directory structure.
+    
+    This function performs the following main tasks:
+    1. Clamps the provided transpose factor (ensuring a valid range between 0 and 6) and computes the corresponding
+       transposition index range.
+    2. Retrieves a list of MIDI files from the master MIDI dataset directory.
+    3. Ensures that the master and output directories exist (creating them if necessary).
+    4. For each MIDI file in the master dataset:
+        - Extracts its signature using an external signature extraction routine (`get_MIDI_signature`), taking into account
+          options such as whether to use the full signature, whether to omit drum tracks, convert counts to ratios, and how
+          many transpositions to consider.
+        - Iterates over each element (or variation) of the extracted signature (the number of which is implicitly determined
+          by the transposition range) and computes distances between the current signature element and a reference set of
+          signature features (using `get_distances_np`). The distance computation can be modified by several parameters including:
+              • Whether to use min-max ratios or absolute differences.
+              • A mismatch penalty and a power factor (p) for the distance metric.
+              • The data type used for numerical operations.
+        - Sorts the computed distances in ascending order and identifies the top N (as defined by `number_of_top_matches_to_copy`)
+          closest matches.
+        - Creates an output subdirectory (named after the MIDI file, without its extension) inside the specified output directory.
+        - Optionally copies the original MIDI file to the output subdirectory.
+        - For each of the top matching files:
+              • Determines the corresponding filename from `sigs_dicts`.
+              • Constructs a new filename that embeds the computed distance and the transposition index used.
+              • Checks for duplicates (to avoid copying the same file or file with the same distance more than once).
+              • If the source file exists in the specified Godzilla MIDI dataset directory (organized by subdirectories), it 
+                copies the file into the output subdirectory.
+    5. Prints progress messages and a final “Done!” message to the console.
     
     Parameters:
-        sigs_dicts (list): List of signature data items where each element contains at least a filename.
-        X (array-like): Feature matrix against which the MIDI signatures are compared.
-        global_union: Data structure representing the union of all signature features.
-        godzilla_dir (str): Base directory for the Godzilla MIDI dataset.
-                             Default is './Godzilla-MIDI-Dataset/MIDIs/'.
-        master_dir (str): Directory containing the master MIDI files.
-                          Default is './Master-MIDI-Dataset/'.
-        output_dir (str): Directory where filtered MIDI files will be stored.
-                          Default is './Output-MIDI-Dataset/'.
-        number_of_top_matches_to_copy (int): Number of top matching files to copy per signature segment.
-                                             Default is 30.
-        include_original_midis (bool): If True, copies the original master MIDI file to the output folder.
-                                       Default is True.
-        use_full_signatures (bool): If False, computes basic signatures for each MIDI file.
-                                    Default is True.
-        transpose_factor (int): Controls the range for transposition adjustments (clamped between 0 and 6).
-                                Default is 6.
-        convert_counts_to_ratios (bool): If True, converts count-based metrics to ratios when computing signatures.
-                                         Default is True.
-        omit_drums (bool): If True, omits drum tracks from the signature computation.
-                           Default is True.
-        use_min_max_ratios (bool): Flag to determine type of normalization used in distance computation.
-                                   Default is False.
-        use_abs_dist (bool): If True, uses absolute distance measures when comparing signatures.
-                             Default is False.
-        mismatch_penalty (int): Penalty factor applied to mismatches during distance calculation.
-                                Default is 10.
-
-        p (int): p value for distances calculations. Default is 3 (Minkowski)
+        sigs_dicts (list): A list of signature entries (e.g., tuples or lists) where each entry contains at least the file
+                           identifier (filename) corresponding to a MIDI file in the Godzilla dataset.
+        X (array-like): A reference array or matrix containing feature vectors against which MIDI signatures are compared.
+        global_union (collection): A parameter (e.g., a set or list) representing the global union used during distance
+                                   computation for normalizing or aligning signatures.
+        godzilla_dir (str, optional): Path to the directory containing the Godzilla MIDI Dataset. The dataset is expected
+                                      to be organized in subdirectories (e.g., by the first character of the file name).
+                                      Default is './Godzilla-MIDI-Dataset/MIDIs/'.
+        master_dir (str, optional): Path to the master MIDI dataset directory from which MIDI files are processed.
+                                    Default is './Master-MIDI-Dataset/'.
+        output_dir (str, optional): Path to the directory where the filtered and matched MIDI files will be copied.
+                                    Default is './Output-MIDI-Dataset/'.
+        number_of_top_matches_to_copy (int, optional): The number of top matching MIDI files to copy for each signature
+                                                       computed per MIDI file. Default is 30.
+        include_original_midis (bool, optional): If True, the original master MIDI file is also copied into the output subdirectory.
+                                                 Default is True.
+        use_full_signatures (bool, optional): Determines whether to compute and use full MIDI signatures rather than
+                                              truncated or partial versions. Passed to the signature extraction routine.
+                                              Default is True.
+        transpose_factor (int, optional): Specifies the number of transpositions to consider when extracting MIDI signatures.
+                                          This value is clamped between 0 and 6. A positive value sets a range of transposition
+                                          indices (from -transpose_factor to transpose_factor). Default is 6.
+        convert_counts_to_ratios (bool, optional): If True, converts raw count values in the MIDI signature to ratios,
+                                                   which may be used to normalize the signature before comparison.
+                                                   Default is True.
+        omit_drums (bool, optional): If True, drum tracks are omitted from the MIDI signature extraction, focusing the
+                                     analysis on melodic/harmonic content. Default is True.
+        use_min_max_ratios (bool, optional): When computing distances between signatures, if True, the minimum and maximum
+                                             ratios are used in the computation. Default is False.
+        use_abs_dist (bool, optional): Determines whether absolute differences (as opposed to squared or other metrics)
+                                       are used in the distance calculation. Default is False.
+        mismatch_penalty (numeric, optional): A penalty cost applied for mismatches in the signature comparison routine.
+                                              Default is 10.
+        p (numeric, optional): The exponent or norm parameter used in the distance calculation (e.g., for computing
+                               p-norms). Default is 3.
+        dtype (data-type, optional): The data type (e.g., cp.float32) used for numerical computations. Reduce this value
+                                     if your GPU VRAM is limited. Default is cp.float32.
     
     Returns:
         None
-
+    
     Side Effects:
-        - Creates directories in `master_dir` and `output_dir` if they do not exist.
-        - Copies MIDI files from the Godzilla directory into structured subdirectories in the output directory.
-        - Prints progress information to the console.
+        - Creates directories specified by `master_dir` and `output_dir` if they do not already exist.
+        - Copies files from the Godzilla MIDI Dataset to the output directory based on matching criteria.
+        - Prints progress and status messages to the console.
+        - Uses external helper functions (such as `create_files_list`, `get_MIDI_signature`, and `get_distances_np`)
+          and relies on modules like os, shutil, and tqdm for file operations and progress tracking.
+        
+    Example:
+        >>> search_and_filter(sigs_dicts, X, global_union)
+        
+        This will process all MIDI files found in the default master directory, compute their signatures with possible transpositions,
+        filter and copy the top 30 matches for each computed signature segment from the Godzilla dataset, and store the results
+        (along with the original MIDI file, if enabled) in the default output directory.
+    
+    Notes:
+        - The transposition range is dynamically set based on the clamped `transpose_factor`; a value of 0 results in no transposition,
+          while a positive value defines a symmetric range (negative to positive).
+        - The function avoids duplicating file copies by tracking filenames and distance values in internal lists.
+        - Proper directory structure in the Godzilla dataset (`godzilla_dir`) is assumed, where MIDI files are organized in subdirectories.
     """
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2308,7 +2352,8 @@ def search_and_filter(sigs_dicts,
                                      use_min_max_ratios=use_min_max_ratios,
                                      use_abs_dist=use_abs_dist,
                                      mismatch_penalty=mismatch_penalty,
-                                     p=p
+                                     p=p,
+                                     dtype=dtype
                                     )
         
             sorted_indices = cp.argsort(dists).tolist()
@@ -2355,7 +2400,8 @@ def consequtive_search_and_filter(sigs_dicts,
                                   use_min_max_ratios=False,
                                   use_abs_dist=False,
                                   mismatch_penalty=10,
-                                  p=3
+                                  p=3,
+                                  dtype=np.float32
                                  ):
 
     transpose_factor = max(0, min(6, transpose_factor))
@@ -2406,7 +2452,8 @@ def consequtive_search_and_filter(sigs_dicts,
                                        use_min_max_ratios=use_min_max_ratios,
                                        use_abs_dist=use_abs_dist,
                                        mismatch_penalty=mismatch_penalty,
-                                       p=3
+                                       p=3,
+                                       dtype=dtype
                                       )
 
                 dists.append(dist.tolist())
